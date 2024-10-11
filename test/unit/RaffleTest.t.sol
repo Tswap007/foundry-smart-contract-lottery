@@ -15,8 +15,11 @@ contract RaffleTest is Test {
     uint256 interval;
     address vrfCoordinator;
     bytes32 gasLane;
-    uint256 subcriptionId;
+    uint256 subscriptionId;
     uint32 callbackGasLimit;
+
+    event RaffleEntered(address indexed player);
+    event WinnerPicked(address indexed winner);
 
     address public PLAYER = makeAddr("player");
     uint256 public constant STARTING_PLAYER_BALANCE = 10 ether;
@@ -30,7 +33,7 @@ contract RaffleTest is Test {
         interval = networkConfig.interval;
         vrfCoordinator = networkConfig.vrfCoordinator;
         gasLane = networkConfig.gasLane;
-        subcriptionId = networkConfig.subcriptionId;
+        subscriptionId = networkConfig.subscriptionId;
         callbackGasLimit = networkConfig.callbackGasLimit;
 
         vm.deal(PLAYER, STARTING_PLAYER_BALANCE);
@@ -58,5 +61,28 @@ contract RaffleTest is Test {
 
         address playerRecorded = raffle.getPlayers(0);
         assert(playerRecorded == PLAYER);
+    }
+
+    function testEnteringRaffleEmitsEvent() public {
+        vm.prank(PLAYER);
+
+        vm.expectEmit(true, false, false, false, address(raffle));
+
+        emit RaffleEntered(PLAYER);
+
+        raffle.enterRaffle{value: entranceFee}();
+    }
+
+    function testDontallowPlayersToEnterWhileRafffleIsCalculating() public {
+        vm.prank(PLAYER);
+        raffle.enterRaffle{value: entranceFee}();
+
+        vm.warp(block.timestamp + interval + 1);
+        vm.roll(block.number + 1);
+        raffle.performUpkeep();
+        
+        vm.expectRevert(Raffle.Raffle__RaffleNotOpen.selector);
+        vm.prank(PLAYER);
+        raffle.enterRaffle{value: entranceFee}();
     }
 }
